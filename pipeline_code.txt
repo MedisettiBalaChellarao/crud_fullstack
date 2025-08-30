@@ -12,8 +12,8 @@ pipeline {
         FRONTEND_DIR = 'crud_front'
 
         // WAR files
-        BACKEND_WAR = 'crud_back\\target\\springapp1.war'
-        FRONTEND_WAR = 'crud_front\\frontapp1.war'
+        BACKEND_WAR = 'crud_back/target/springapp1.war'
+        FRONTEND_WAR = 'crud_front/frontapp1.war'
     }
 
     stages {
@@ -26,7 +26,7 @@ pipeline {
         stage('Build Backend') {
             steps {
                 dir("${BACKEND_DIR}") {
-                    bat 'mvn clean package -DskipTests'
+                    sh 'mvn clean package -DskipTests'
                 }
             }
         }
@@ -34,9 +34,9 @@ pipeline {
         stage('Deploy Backend') {
             steps {
                 script {
-                    bat """
-                    curl -u %TOMCAT_USER%:%TOMCAT_PASS% --upload-file %BACKEND_WAR% ^
-                    "%TOMCAT_URL%/deploy?path=/springapp1&update=true"
+                    sh """
+                    curl -u $TOMCAT_USER:$TOMCAT_PASS --upload-file $BACKEND_WAR \
+                    "$TOMCAT_URL/deploy?path=/springapp1&update=true"
                     """
                 }
             }
@@ -45,11 +45,11 @@ pipeline {
         stage('Build Frontend') {
             steps {
                 dir("${FRONTEND_DIR}") {
-                    bat 'npm install'
-                    bat 'npm run build'
+                    sh 'npm install'
+                    sh 'npm run build'
                     
                     // Package React build folder into WAR
-                    bat 'jar -cvf frontapp1.war -C dist .'
+                    sh 'jar -cvf frontapp1.war -C dist .'
                 }
             }
         }
@@ -57,9 +57,9 @@ pipeline {
         stage('Deploy Frontend') {
             steps {
                 script {
-                    bat """
-                    curl -u %TOMCAT_USER%:%TOMCAT_PASS% --upload-file %FRONTEND_WAR% ^
-                    "%TOMCAT_URL%/deploy?path=/frontapp1&update=true"
+                    sh """
+                    curl -u $TOMCAT_USER:$TOMCAT_PASS --upload-file $FRONTEND_WAR \
+                    "$TOMCAT_URL/deploy?path=/frontapp1&update=true"
                     """
                 }
             }

@@ -1,67 +1,88 @@
 pipeline {
     agent any
 
+    tools {
+        // use JDK 21 that you configured in Jenkins global tool config
+        jdk 'JDK_HOME'
+        maven 'MAVEN_HOME'
+    }
+
     environment {
-        // Tomcat deployment details
-        TOMCAT_URL = 'http://13.223.123.83:9090/manager/text'
+        TOMCAT_URL  = 'http://13.223.123.83:9090/manager/html'
         TOMCAT_USER = 'admin'
         TOMCAT_PASS = 'admin'
 
-        // Paths
-        BACKEND_DIR = 'crud_back'
+        MAIN_REPO   = 'https://github.com/MedisettiBalaChellarao/crud_fullstack.git'
+
+        BACKEND_DIR  = 'crud_back'
         FRONTEND_DIR = 'crud_front'
 
-        // WAR files
-        BACKEND_WAR = 'crud_back/target/springapp1.war'
+        BACKEND_WAR  = 'crud_back/target/springapp1.war'
         FRONTEND_WAR = 'crud_front/frontapp1.war'
     }
 
     stages {
-        stage('Checkout') {
+        stage('Clone Repository') {
             steps {
-                git branch: 'main', url: 'https://github.com/MedisettiBalaChellarao/crud_fullstack.git'
+                git branch: 'main', url: "${env.MAIN_REPO}"
             }
         }
 
-        stage('Build Backend') {
-            steps {
-                dir("${BACKEND_DIR}") {
-                    sh 'mvn clean package -DskipTests'
-                }
-            }
-        }
-
-        stage('Deploy Backend') {
+        stage('Build React Frontend') {
             steps {
                 script {
-                    sh """
-                    curl -u $TOMCAT_USER:$TOMCAT_PASS --upload-file $BACKEND_WAR \
-                    "$TOMCAT_URL/deploy?path=/springapp1&update=true"
-                    """
+                    def nodeHome = tool name: 'NODE_HOME', type: 'jenkins.plugins.nodejs.tools.NodeJSInstallation'
+                    env.PATH = "${nodeHome}/bin:${env.PATH}"
                 }
-            }
-        }
-
-        stage('Build Frontend') {
-            steps {
-                dir("${FRONTEND_DIR}") {
+                dir("${env.FRONTEND_DIR}") {
+                    // clean install for consistency
+                    sh 'rm -rf node_modules dist package-lock.json'
                     sh 'npm install'
-                    sh 'npm run build'
-                    
-                    // Package React build folder into WAR
-                    sh 'jar -cvf frontapp1.war -C dist .'
+                    // build using npx
+                    sh 'npx vite build'
                 }
             }
         }
 
-        stage('Deploy Frontend') {
+        stage('Package React as WAR') {
             steps {
                 script {
-                    sh """
-                    curl -u $TOMCAT_USER:$TOMCAT_PASS --upload-file $FRONTEND_WAR \
-                    "$TOMCAT_URL/deploy?path=/frontapp1&update=true"
-                    """
+                    def warDir = "${env.FRONTEND_DIR}/war_content"
+                    sh "rm -rf ${warDir}"
+                    sh "mkdir -p ${warDir}/META-INF ${warDir}/WEB-INF"
+                    sh "cp -r ${env.FRONTEND_DIR}/dist/* ${warDir}/"
+                    sh "jar -cvf ${env.FRONTEND_WAR} -C ${warDir} ."
                 }
+            }
+        }
+
+        stage('Build Spring Boot App') {
+            steps {
+                dir("${env.BACKEND_DIR}") {
+                    // force Java 21 for maven
+                    sh 'mvn -Djava.version=21 clean package'
+                    sh 'mv target/*.war target/springapp1.war || true'
+                }
+            }
+        }
+
+        stage('Deploy Spring Boot WAR') {
+            steps {
+                sh """
+                    curl -u ${env.TOMCAT_USER}:${env.TOMCAT_PASS} \
+                        --upload-file "${env.BACKEND_WAR}" \
+                        "${env.TOMCAT_URL}/deploy?path=/springapp1&update=true"
+                """
+            }
+        }
+
+        stage('Deploy Frontend WAR') {
+            steps {
+                sh """
+                    curl -u ${env.TOMCAT_USER}:${env.TOMCAT_PASS} \
+                        --upload-file "${env.FRONTEND_WAR}" \
+                        "${env.TOMCAT_URL}/deploy?path=/frontapp1&update=true"
+                """
             }
         }
     }

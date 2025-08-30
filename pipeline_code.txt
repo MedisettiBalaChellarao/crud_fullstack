@@ -12,8 +12,8 @@ pipeline {
         FRONTEND_DIR = 'crud_front'
 
         // WAR files
-        BACKEND_WAR = 'crud_back/target/springapp1.war'
-        FRONTEND_WAR = 'crud_front/frontapp1.war'
+        BACKEND_WAR = 'crud_back\\target\\springapp1.war'
+        FRONTEND_WAR = 'crud_front\\frontapp1.war'
     }
 
     stages {
@@ -26,7 +26,7 @@ pipeline {
         stage('Build Backend') {
             steps {
                 dir("${BACKEND_DIR}") {
-                    sh 'mvn clean package -DskipTests'
+                    bat 'mvn clean package -DskipTests'
                 }
             }
         }
@@ -34,9 +34,9 @@ pipeline {
         stage('Deploy Backend') {
             steps {
                 script {
-                    sh """
-                    curl -u ${TOMCAT_USER}:${TOMCAT_PASS} --upload-file ${BACKEND_WAR} \\
-                    "${TOMCAT_URL}/deploy?path=/springapp1&update=true"
+                    bat """
+                    curl -u %TOMCAT_USER%:%TOMCAT_PASS% --upload-file %BACKEND_WAR% ^
+                    "%TOMCAT_URL%/deploy?path=/springapp1&update=true"
                     """
                 }
             }
@@ -45,10 +45,11 @@ pipeline {
         stage('Build Frontend') {
             steps {
                 dir("${FRONTEND_DIR}") {
-                    sh 'npm install'
-                    sh 'npm run build'
-                    sh 'jar -cvf frontapp1.war -C dist .'
-                    sh 'mv frontapp1.war frontapp1.war'
+                    bat 'npm install'
+                    bat 'npm run build'
+                    
+                    // Package React build folder into WAR
+                    bat 'jar -cvf frontapp1.war -C dist .'
                 }
             }
         }
@@ -56,9 +57,9 @@ pipeline {
         stage('Deploy Frontend') {
             steps {
                 script {
-                    sh """
-                    curl -u ${TOMCAT_USER}:${TOMCAT_PASS} --upload-file ${FRONTEND_DIR}/frontapp1.war \\
-                    "${TOMCAT_URL}/deploy?path=/frontapp1&update=true"
+                    bat """
+                    curl -u %TOMCAT_USER%:%TOMCAT_PASS% --upload-file %FRONTEND_WAR% ^
+                    "%TOMCAT_URL%/deploy?path=/frontapp1&update=true"
                     """
                 }
             }
